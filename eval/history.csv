@@ -1,0 +1,2 @@
+ts,release_id,llm_model,prompt_version,prompt_hash,embed_model,n,hit@1,hit@3,hit@k,mrr,citation_correct,section_correct,answer_rules_ok,refusal_precision,refusal_recall,false_refusal_rate,leak_rate,version_correct,conflict_handled,faithfulness_judge,flagged_rate,errors,cost_usd,gate
+20261012T195539Z,2026-10-r2,claude-haiku-5-5,answer_v2,ed4c6d4681a5,BAAI/bge-m3,55,0.811,0.946,0.973,0.959,1.0,1.0,0.919,1.0,1.0,0.0,0.0,0.875,0.667,0.959,0.0,0,0.02428,FAIL
