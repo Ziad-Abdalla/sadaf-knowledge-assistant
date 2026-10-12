@@ -1,0 +1,14 @@
+doc_id: TECH-DELIVERY-STREAM
+title: Streaming Platform Delivery Specification
+department: technical
+owner: post-production@sadaf.example
+doc_type: spec
+version: '2.0'
+effective_date: 2026-02-01
+supersedes: null
+access:
+- all
+confidentiality: internal
+language: en
+odoo_link: null
+synthetic: true

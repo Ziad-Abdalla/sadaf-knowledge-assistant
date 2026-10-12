@@ -69,6 +69,8 @@ def chunk_document(doc: Document) -> list[Chunk]:
     chunks = []
     for number, title, lines in _sections(doc.body):
         text = "\n".join(lines).strip()
+        if number == "0" and text.replace("\n", " ").strip() == doc.title:
+            continue                       # a PDF's title line on its own is not content
         pieces = [text] if len(text) <= MAX_CHARS else _split_long(lines)
         for i, piece in enumerate(pieces):
             suffix = f"-{i + 1}" if len(pieces) > 1 else ""

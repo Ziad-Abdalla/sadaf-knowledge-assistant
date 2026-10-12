@@ -1,0 +1,14 @@
+doc_id: TECH-DELIVERY-BROADCAST
+title: Broadcast Delivery Specification (TV Channel)
+department: technical
+owner: post-production@sadaf.example
+doc_type: spec
+version: '3.0'
+effective_date: 2026-01-01
+supersedes: null
+access:
+- all
+confidentiality: internal
+language: en
+odoo_link: null
+synthetic: true
