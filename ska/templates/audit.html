@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Audit log (demo)</title>
+<style>
+  body { font-family: "Segoe UI", Tahoma, sans-serif; margin: 24px; color: #1c2430; background: #f7f4ee; }
+  h1 { font-size: 20px; } h2 { font-size: 16px; margin-top: 28px; }
+  table { border-collapse: collapse; width: 100%; background: #fffdf9; font-size: 12.5px; }
+  th, td { border: 1px solid #e2ddd3; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #14324a; color: #fff; font-weight: 600; }
+  td.q { direction: rtl; text-align: right; max-width: 280px; }
+  .refused { color: #8d2f2f; } .error { color: #9a5b12; font-weight: 700; } .answered { color: #2f6b4f; }
+  code { font-size: 11.5px; }
+</style>
+</head>
+<body>
+<h1>Audit log <small>(demo page; admin-only in production) · active release {{ release.id }}</small></h1>
+
+<h2>Per release</h2>
+<table><tr><th>release</th><th>n</th><th>error rate</th><th>refusal rate</th><th>flagged rate</th><th>avg latency ms</th><th>cost $</th></tr>
+{% for s in summary %}<tr><td>{{ s.key }}</td><td>{{ s.n }}</td><td>{{ s.error_rate }}</td><td>{{ s.refusal_rate }}</td><td>{{ s.flagged_rate }}</td><td>{{ s.avg_latency_ms }}</td><td>{{ s.cost_usd }}</td></tr>{% endfor %}
+</table>
+
+<h2>Open flags for document owners</h2>
+<table><tr><th>time</th><th>kind</th><th>owner</th><th>documents</th><th>topic</th></tr>
+{% for f in flags %}<tr><td>{{ f.ts }}</td><td>{{ f.kind }}</td><td>{{ f.owner }}</td><td><code>{{ f.doc_ids }}</code></td><td class="q">{{ f.topic }}</td></tr>{% endfor %}
+</table>
+
+<h2>Last 30 questions</h2>
+<table><tr><th>time</th><th>user / roles</th><th>question</th><th>decision</th><th>release · model · prompt</th><th>retrieved</th><th>blocked (access / version)</th><th>restricted matches</th><th>flags</th><th>cost $</th><th>ms</th></tr>
+{% for r in rows %}<tr>
+<td>{{ r.ts }}</td><td>{{ r.user_id }}<br>{{ r.roles }}</td><td class="q">{{ r.question }}</td>
+<td class="{{ r.decision }}">{{ r.decision }}<br><small>{{ r.reason }}</small></td>
+<td><code>{{ r.release_id }}<br>{{ r.model }}<br>{{ r.prompt_version }} {{ r.prompt_hash }}</code></td>
+<td><code>{{ r.cited_docs }}</code></td><td>{{ r.blocked_by_access }} / {{ r.blocked_by_version }}</td>
+<td><code>{{ r.restricted_matches }}</code></td><td><code>{{ r.flags }}</code></td>
+<td>{{ "%.5f"|format(r.cost_usd or 0) }}</td><td>{{ r.latency_ms }}</td></tr>{% endfor %}
+</table>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مساعد المعرفة الداخلي</title>
+<style>
+  :root {
+    --ink: #1c2430; --muted: #5d6877; --line: #e2ddd3; --pearl: #f7f4ee; --card: #fffdf9;
+    --deep: #14324a; --accent: #b0894f; --ok: #2f6b4f; --warn: #9a5b12; --warn-bg: #fdf3e2;
+    --bad: #8d2f2f; --bad-bg: #fbecec;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", "Noto Kufi Arabic", Tahoma, sans-serif;
+         background: var(--pearl); color: var(--ink); line-height: 1.75; }
+  header { background: var(--deep); color: #fff; padding: 14px 28px; display: flex;
+           align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 19px; margin: 0; font-weight: 600; }
+  header .sub { font-size: 12.5px; opacity: .8; }
+  .tag { font-size: 11.5px; background: rgba(255,255,255,.12); padding: 2px 10px; border-radius: 99px; }
+  main { max-width: 920px; margin: 0 auto; padding: 22px 20px 60px; }
+  form.ask { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  label.small { font-size: 13px; color: var(--muted); }
+  select, textarea, button { font: inherit; }
+  select { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  textarea { width: 100%; min-height: 70px; margin: 10px 0; padding: 10px 12px; border-radius: 10px;
+             border: 1px solid var(--line); resize: vertical; background: #fff; }
+  button { background: var(--deep); color: #fff; border: 0; border-radius: 10px; padding: 8px 22px; cursor: pointer; }
+  .chips { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: 12.5px; border: 1px solid var(--line); background: #fff; color: var(--deep);
+          border-radius: 99px; padding: 3px 12px; cursor: pointer; }
+  .qline { margin: 22px 0 8px; color: var(--muted); font-size: 14px; }
+  .answer { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .answer p.s { margin: 0 0 8px; }
+  sup a { color: var(--accent); text-decoration: none; font-weight: 700; margin: 0 1px; }
+  .flag { color: var(--warn); font-size: 12.5px; background: var(--warn-bg); border-radius: 6px; padding: 0 6px; margin-inline-start: 6px; }
+  .notice { font-size: 13.5px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 8px; }
+  .notice.conflict { color: var(--warn); background: var(--warn-bg); border: 0; border-radius: 8px; padding: 8px 12px; }
+  .refused { border-color: #e7cfcf; background: var(--bad-bg); }
+  .refused h3 { margin: 0 0 6px; font-size: 16px; color: var(--bad); }
+  .why { font-size: 13.5px; color: var(--muted); margin-top: 8px; }
+  h2.cites { font-size: 15px; margin: 22px 0 8px; color: var(--deep); }
+  .cite { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; }
+  .cite .t { font-weight: 600; }
+  .cite .m { font-size: 12.5px; color: var(--muted); }
+  .badge { font-size: 11px; border-radius: 99px; padding: 1px 8px; margin-inline-start: 6px; }
+  .badge.current { background: #e5f1ea; color: var(--ok); }
+  .badge.superseded { background: #eee; color: #666; }
+  details { margin-top: 6px; }
+  details summary { cursor: pointer; font-size: 12.5px; color: var(--deep); }
+  .quote { white-space: pre-wrap; font-size: 13px; background: var(--pearl); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+  .tech { font-size: 12px; color: var(--muted); direction: ltr; text-align: left; font-family: Consolas, monospace; }
+  footer { font-size: 12px; color: var(--muted); text-align: center; margin-top: 30px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>مساعد المعرفة الداخلي</h1>
+    <div class="sub">يجيب من مستندات الشركة فقط، مع ذكر المصدر والإصدار — بيانات تجريبية مُصطنعة</div>
+  </div>
+  <span class="tag">الإصدار {{ release.id }}</span>
+</header>
+<main>
+  <form class="ask" method="post" action="/ask">
+    <div class="row">
+      <label class="small" for="user_id">تسجيل الدخول باسم (للعرض فقط):</label>
+      <select name="user_id" id="user_id">
+        {% for uid, u in users.items() %}
+        <option value="{{ uid }}" {% if uid == user_id %}selected{% endif %}>{{ u.name }}</option>
+        {% endfor %}
+      </select>
+      <label class="small"><input type="checkbox" name="history" value="1" {% if history %}checked{% endif %}> أريد النسخ السابقة أيضًا</label>
+    </div>
+    <textarea name="question" id="q" placeholder="اكتب سؤالك هنا…" required>{{ question }}</textarea>
+    <div class="row"><button type="submit">اسأل</button></div>
+    <div class="chips">
+      {% for ex in examples %}<span class="chip" onclick="document.getElementById('q').value=this.textContent">{{ ex }}</span>{% endfor %}
+    </div>
+  </form>
+
+  {% if answer %}
+  <div class="qline">السؤال: {{ answer.question }}</div>
+  {% if answer.status in ("refused", "error") %}
+  <div class="answer refused">
+    <h3>{% if answer.status == "refused" %}لا أستطيع الإجابة من المستندات{% else %}حدث خطأ{% endif %}</h3>
+    <div>{{ answer.message }}</div>
+    {% if answer.missing %}<div class="why">ما لم أجده: {{ answer.missing }}</div>{% endif %}
+    {% if why %}<details open><summary>لماذا لا أستطيع الإجابة؟</summary><div class="why">{{ why }}</div></details>{% endif %}
+  </div>
+  {% else %}
+  <div class="answer" dir="{{ 'rtl' if answer.lang == 'ar' else 'ltr' }}">
+    {% for s in answer.sentences %}
+    <p class="s">{{ s.text }}{% for n in s.citations %}<sup><a href="#c{{ n }}">[{{ n }}]</a></sup>{% endfor %}
+      {% if "number_not_in_source" in s.flags or "no_citation" in s.flags or "unknown_source" in s.flags %}<span class="flag" title="{{ s.flags|join(', ') }}">⚠ لم يتحقق من هذه الجملة في المصدر</span>{% elif "derived_number" in s.flags %}<span class="flag" title="derived_number">رقم محسوب من المصدر</span>{% endif %}
+    </p>
+    {% endfor %}
+    {% if answer.status == "partial" and answer.missing %}<div class="notice">لم أجد في المستندات: {{ answer.missing }}</div>{% endif %}
+    {% for n in answer.notices %}<div class="notice {% if 'تعارض' in n or 'disagree' in n %}conflict{% endif %}">{{ n }}</div>{% endfor %}
+  </div>
+  <h2 class="cites">المصادر</h2>
+  {% for c in answer.citations %}
+  <div class="cite" id="c{{ c.n }}">
+    <div class="t">[{{ c.n }}] {{ c.title }}<span class="badge {{ c.status }}">{% if c.status == "current" %}سارية{% else %}نسخة سابقة{% endif %}</span></div>
+    <div class="m">القسم {{ c.section }} «{{ c.section_title }}» · الإصدار {{ c.version }} · ساري من {{ c.effective_date }} · {{ c.doc_id }}{% if c.odoo_link %} · في Odoo: {{ c.odoo_link }}{% endif %}</div>
+    <details><summary>عرض النص من المصدر</summary><div class="quote">{{ c.quote }}</div></details>
+  </div>
+  {% endfor %}
+  {% endif %}
+  <details><summary class="tech">trace</summary>
+    <div class="tech">request {{ answer.request_id }} · release {{ answer.release_id }} · {{ answer.model }} · prompt {{ answer.prompt_hash }} · best_dense {{ "%.3f"|format(answer.best_dense) }} · ${{ "%.5f"|format(answer.cost_usd) }} · {{ answer.latency_ms }} ms{% if answer.redacted %} · redacted{% endif %}</div>
+  </details>
+  {% endif %}
+  <footer>جميع المستندات في هذا العرض مُصطنعة. الصلاحيات تُطبَّق قبل البحث، وكل سؤال يُسجَّل في سجل التدقيق.</footer>
+</main>
+</body>
+</html>
