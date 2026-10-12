@@ -1,0 +1,15 @@
+# Demo users. In production the roles come from the company login (SSO or Odoo groups),
+# never from anything the user types.
+users:
+  saad:
+    name: "سعد — مصوّر (طاقم)"
+    roles: [crew]
+  noura:
+    name: "نورة — منتجة منفذة"
+    roles: [producer]
+  khalid:
+    name: "خالد — الإدارة المالية"
+    roles: [finance]
+  reem:
+    name: "ريم — الإدارة التنفيذية"
+    roles: [executive]

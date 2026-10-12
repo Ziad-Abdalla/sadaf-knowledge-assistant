@@ -1,0 +1,24 @@
+# Every setting that can change an answer is pinned in a release.
+# Rollback = point `active` at the previous release (python -m ska release use <id>),
+# or set SKA_RELEASE=<id> in the environment for one process. Every audit row and every
+# eval run records the release id, model, prompt version and prompt hash.
+active: "2026-10-r2"
+releases:
+  "2026-10-r1":
+    llm_model: claude-haiku-5-5
+    prompt: answer_v1
+    effort: low
+    embed_model: BAAI/bge-m3
+    top_k: 6
+    min_dense: 0.45
+    external_policy: redact
+    notes: "First release. Short prompt, no conflict-handling rules."
+  "2026-10-r2":
+    llm_model: claude-haiku-5-5
+    prompt: answer_v2
+    effort: low
+    embed_model: BAAI/bge-m3
+    top_k: 6
+    min_dense: 0.45
+    external_policy: redact
+    notes: "Adds conflict rules (policy beats minutes), dialect handling, history wording."
