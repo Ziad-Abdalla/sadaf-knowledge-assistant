@@ -127,3 +127,16 @@ def test_audit_row_has_everything_needed_to_trace_a_regression(make_assistant, u
         assert row[key] not in (None, ""), key
     assert row["prompt_hash"] == TEST_RELEASE.prompt_hash
     assert audit.summary_by("release_id")[0]["key"] == "test-r2"
+
+
+def test_two_versions_of_one_policy_are_not_reported_as_a_conflict(make_assistant, users, audit):
+    def versions_conflict(kw):
+        srcs = sources_in(kw)
+        old = next(s[0] for s in srcs if "250" in s[2])
+        new = next(s[0] for s in srcs if "350" in s[2])
+        return {"status": "answered", "missing": "",
+                "sentences": [{"text": "في الإصدار 2.0 أصبحت المياومة 350 ريالًا.", "sources": [new]}],
+                "conflicts": [{"topic": "المياومة", "sources": [old, new], "note": "250 vs 350"}]}
+    ans = make_assistant(client=FakeAnthropic(responder=versions_conflict)).ask(
+        "كم كانت المياومة في 2025 وكم صارت الآن؟", users["saad"])
+    assert ans.conflicts == [] and audit.open_flags() == []

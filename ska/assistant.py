@@ -287,6 +287,8 @@ class Assistant:
                     if s in hit_by_sid}
             if len(docs) < 2:
                 continue
+            if any(d.supersedes in docs for d in docs.values()):
+                continue          # two versions of one policy differ on purpose; not a conflict
             ranked = sorted(docs.values(), key=lambda d: (d.authority, d.effective_date),
                             reverse=True)
             a, b = ranked[0], ranked[1]
