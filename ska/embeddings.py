@@ -38,7 +38,7 @@ class SentenceTransformerEmbedder(Embedder):
         self.model = SentenceTransformer(name, device=device)
         if device == "cuda":
             self.model.half()
-        self.dim = self.model.get_sentence_embedding_dimension()
+        self.dim = self.model.get_embedding_dimension()
         self.batch_size = batch_size
         self.e5 = "e5" in name.lower()
 

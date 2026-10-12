@@ -44,7 +44,7 @@ TEXT = {
         "history": "سؤالك عن نسخ سابقة، لذلك عرضت النسخ القديمة والحالية مع تاريخ كل منها. "
                    "النسخة المعمول بها اليوم هي «{title}» الإصدار {version}.",
         "conflict": "تنبيه: يوجد تعارض بين «{a}» ({a_type}) و«{b}» ({b_type}). المعتمد هو «{a}» "
-                    "لأنه {why}. تم إبلاغ الجهة المالكة للمستند ({owner}) لمراجعة التعارض.",
+                    "لأنه {why}. أُرسل تنبيه لمراجعة التعارض إلى: {owner}.",
         "why_type": "مستند رسمي أعلى مرتبة من {b_type}",
         "why_date": "الأحدث تاريخًا",
         "local_only": "هذا المستند سري للغاية، لذلك لم يُرسل إلى أي نموذج خارجي. هذه المقاطع "
@@ -65,7 +65,7 @@ TEXT = {
         "history": "You asked about earlier versions, so old and current versions are shown "
                    "with their dates. The one in force today is \"{title}\" version {version}.",
         "conflict": "Note: \"{a}\" ({a_type}) and \"{b}\" ({b_type}) disagree. \"{a}\" applies "
-                    "because it is {why}. The document owner ({owner}) has been notified.",
+                    "because it is {why}. A review flag was sent to: {owner}.",
         "why_type": "an official document that outranks {b_type}",
         "why_date": "the newer one",
         "local_only": "This document is highly confidential, so it was not sent to any external "
@@ -289,6 +289,8 @@ class Assistant:
                 continue
             if any(d.supersedes in docs for d in docs.values()):
                 continue          # two versions of one policy differ on purpose; not a conflict
+            if any(set(x["docs"]) == set(docs) for x in ans.conflicts):
+                continue          # the model reported the same pair twice
             ranked = sorted(docs.values(), key=lambda d: (d.authority, d.effective_date),
                             reverse=True)
             a, b = ranked[0], ranked[1]
@@ -308,7 +310,8 @@ class Assistant:
     def _version_notices(self, ans: Answer, user: User, T: dict) -> None:
         docs = self.index.docs
         st = statuses(list(docs.values()), self.today)
-        seen = set()
+        # A document that lost a conflict is cited, but the answer isn't "based on" it.
+        seen = {d for x in ans.conflicts for d in x["docs"] if d != x["preferred"]}
         for c in ans.citations:
             if c.doc_id in seen:
                 continue

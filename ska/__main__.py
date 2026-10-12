@@ -103,6 +103,7 @@ def cmd_serve(args):
 
 
 def main(argv=None):
+    sys.stdout.reconfigure(encoding="utf-8")   # Arabic in the Windows console
     p = argparse.ArgumentParser(prog="ska")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("ingest"); s.add_argument("--embed-model"); s.set_defaults(fn=cmd_ingest)

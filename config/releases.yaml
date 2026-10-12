@@ -10,7 +10,7 @@ releases:
     effort: low
     embed_model: BAAI/bge-m3
     top_k: 6
-    min_dense: 0.45
+    min_dense: 0.46
     external_policy: redact
     notes: "First release. Short prompt, no conflict-handling rules."
   "2026-10-r2":
@@ -19,6 +19,6 @@ releases:
     effort: low
     embed_model: BAAI/bge-m3
     top_k: 6
-    min_dense: 0.45
+    min_dense: 0.46
     external_policy: redact
     notes: "Adds conflict rules (policy beats minutes), dialect handling, history wording."
