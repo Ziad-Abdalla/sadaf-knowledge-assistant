@@ -224,7 +224,7 @@ class Assistant:
 
         # 3. The model call.
         try:
-            gen = generate(self.client, rel, question, blocks, ans.request_id)
+            gen = generate(self.client, rel, question, blocks, ans.request_id, lang)
         except (GenerationError, BudgetExceeded, anthropic.APIError) as e:
             ans.status, ans.message = "error", T["error"]
             ans.reason = getattr(e, "reason", type(e).__name__)
@@ -270,7 +270,7 @@ class Assistant:
                         section=h.chunk.section, section_title=h.chunk.section_title,
                         version=d.version, effective_date=d.effective_date.isoformat(),
                         status=h.status, doc_type=d.doc_type, odoo_link=d.odoo_link,
-                        quote=h.chunk.text[:600])
+                        quote=h.chunk.text)
 
     def _extractive(self, ans: Answer, secret: list[Hit], T: dict) -> Answer:
         ans.status, ans.reason = "answered", "local_only_extractive"

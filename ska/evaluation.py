@@ -10,6 +10,7 @@ Two modes:
 
 import csv
 import json
+import subprocess
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -222,11 +223,20 @@ def check_gate(m: dict, gate: dict) -> list[str]:
     return failures
 
 
-HISTORY_FIELDS = ["ts", "release_id", "llm_model", "prompt_version", "prompt_hash", "embed_model",
+HISTORY_FIELDS = ["ts", "git_commit", "release_id", "llm_model", "prompt_version", "prompt_hash", "embed_model",
                   "n", "hit@1", "hit@3", "hit@k", "mrr", "citation_correct", "section_correct",
                   "answer_rules_ok", "refusal_precision", "refusal_recall", "false_refusal_rate",
                   "leak_rate", "version_correct", "conflict_handled", "faithfulness_judge",
                   "flagged_rate", "errors", "cost_usd", "gate"]
+
+
+def _git_commit() -> str:
+    """The code version, so a history row points at exactly what was tested."""
+    try:
+        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, text=True,
+                              capture_output=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return ""
 
 
 def run_full(assistant: Assistant, items: list[dict], users: dict[str, User], *,
@@ -265,7 +275,7 @@ def run_full(assistant: Assistant, items: list[dict], users: dict[str, User], *,
         w = csv.DictWriter(f, fieldnames=HISTORY_FIELDS, extrasaction="ignore")
         if new:
             w.writeheader()
-        w.writerow({"ts": stamp, "release_id": rel.id, "llm_model": rel.llm_model,
+        w.writerow({"ts": stamp, "git_commit": _git_commit(), "release_id": rel.id, "llm_model": rel.llm_model,
                     "prompt_version": rel.prompt, "prompt_hash": rel.prompt_hash,
                     "embed_model": rel.embed_model, **m})
     return out

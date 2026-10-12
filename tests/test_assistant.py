@@ -140,3 +140,12 @@ def test_two_versions_of_one_policy_are_not_reported_as_a_conflict(make_assistan
     ans = make_assistant(client=FakeAnthropic(responder=versions_conflict)).ask(
         "كم كانت المياومة في 2025 وكم صارت الآن؟", users["saad"])
     assert ans.conflicts == [] and audit.open_flags() == []
+
+
+def test_answer_language_is_set_by_code(make_assistant, users):
+    client = FakeAnthropic()
+    a = make_assistant(client=client)
+    a.ask("What is the per diem inside the Kingdom?", users["saad"])
+    a.ask("كم المياومة داخل المملكة؟", users["saad"])
+    assert "<answer_language>English</answer_language>" in client.sent[0]["messages"][0]["content"]
+    assert "<answer_language>Arabic</answer_language>" in client.sent[1]["messages"][0]["content"]

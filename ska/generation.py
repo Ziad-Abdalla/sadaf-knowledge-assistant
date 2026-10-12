@@ -62,14 +62,17 @@ def source_block(sid: str, hit: Hit, text: str) -> str:
             f'status="{hit.status}">\n{text}\n</source>')
 
 
-def build_user_message(question: str, blocks: list[str]) -> str:
+def build_user_message(question: str, blocks: list[str], lang: str = "ar") -> str:
     # The question can't open or close our tags: angle brackets become look-alike characters.
     question = question.replace("<", "‹").replace(">", "›")
-    return f"<question>\n{question}\n</question>\n<sources>\n" + "\n".join(blocks) + "\n</sources>"
+    # The answer language is decided by code from the question, not left to the model.
+    language = "Arabic" if lang == "ar" else "English"
+    return (f"<answer_language>{language}</answer_language>\n<question>\n{question}\n</question>\n"
+            "<sources>\n" + "\n".join(blocks) + "\n</sources>")
 
 
 def generate(client, release: Release, question: str, blocks: list[str],
-             request_id: str) -> Generation:
+             request_id: str, lang: str = "ar") -> Generation:
     response = tracked_call(
         client,
         operation="answer_question",
@@ -78,7 +81,7 @@ def generate(client, release: Release, question: str, blocks: list[str],
         max_tokens=4000,
         system=[{"type": "text", "text": release.prompt_text,
                  "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": build_user_message(question, blocks)}],
+        messages=[{"role": "user", "content": build_user_message(question, blocks, lang)}],
         output_config={"effort": release.effort,
                        "format": {"type": "json_schema", "schema": SCHEMA}},
     )

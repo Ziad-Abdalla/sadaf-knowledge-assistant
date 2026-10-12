@@ -90,6 +90,8 @@ def candidate_mask(index: Index, user: User, *, history: bool, today: date | Non
 def search(index: Index, embedder: Embedder, question: str, user: User, *, top_k: int = 6,
            rrf_k: int = 60, history: bool = False, today: date | None = None,
            audit_threshold: float | None = None) -> RetrievalResult:
+    if history:
+        top_k *= 2      # old and new versions both need room in the prompt
     allowed, version_ok, st = candidate_mask(index, user, history=history, today=today)
     mask = allowed & version_ok
     cand = np.flatnonzero(mask)

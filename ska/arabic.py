@@ -43,6 +43,32 @@ DIALECT = {
 }
 
 
+# Company glossary: English work terms -> the Arabic words the policies use. Keyword search
+# can't match "per diem" to "المياومة" on its own (embeddings can), so English questions get
+# these Arabic words added before BM25. Owned by whoever owns the documents; easy to extend.
+GLOSSARY = {
+    "per diem": "مياومة", "allowance": "بدل", "hardship": "مشقة", "remote": "نائية",
+    "hotel": "فندق سكن", "accommodation": "سكن", "overtime": "العمل الإضافي",
+    "friday": "الجمعة", "leave": "إجازة", "vacation": "إجازة", "sick": "مرضية",
+    "equipment": "معدات", "camera": "كاميرا", "lens": "عدسة", "damage": "تلف",
+    "safety": "السلامة", "heat": "الحرارة", "drone": "مسيرة", "budget": "ميزانية",
+    "salary": "راتب رواتب", "petty cash": "عهدة", "approval": "اعتماد", "purchase": "شراء",
+    "expense": "مصروفات مطالبة", "taxi": "أجرة", "transport": "نقل", "permit": "تصريح",
+    "script": "سيناريو نص", "contract": "عقد", "call sheet": "ورقة الاستدعاء",
+    "abha": "أبها", "alula": "العلا", "al-ula": "العلا", "riyadh": "الرياض", "jeddah": "جدة",
+    "crew": "طاقم", "minor": "قاصر", "child": "قاصر", "rest": "راحة", "break": "راحة",
+}
+# Arabic synonyms a policy wouldn't use, mapped to the word it does use.
+SYNONYMS = {"سقف": "الحد الاقصي", "الفندق": "السكن الفندقي", "ميزانيه": "الميزانيه"}
+
+
+def expand_query(text: str) -> str:
+    """Words added to a question before keyword search (not before embedding)."""
+    low = text.lower()
+    extra = [ar for en, ar in GLOSSARY.items() if re.search(rf"\b{re.escape(en)}\b", low)]
+    return text + (" " + " ".join(extra) if extra else "")
+
+
 def normalize_light(text: str) -> str:
     text = unicodedata.normalize("NFKC", text)
     text = TASHKEEL.sub("", text).replace(TATWEEL, "")
@@ -72,7 +98,8 @@ def tokenize(text: str, *, query: bool = False) -> list[str]:
     Numbers are kept, because amounts and versions matter in policies."""
     words = TOKEN.findall(normalize_search(text))
     if query:
-        words = [DIALECT.get(w, w) for w in words]
+        words = TOKEN.findall(normalize_search(expand_query(text)))
+        words = [x for w in words for x in (DIALECT.get(w) or SYNONYMS.get(w) or w).split()]
     out = []
     for w in words:
         if w in STOPWORDS or (len(w) < 2 and not w.isdigit()):
