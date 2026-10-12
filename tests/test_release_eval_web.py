@@ -87,3 +87,14 @@ def test_question_as_a_link(make_assistant, users):
     r = TestClient(create_app(make_assistant(), users)).get(
         "/ask", params={"q": "كم المياومة اليومية داخل المملكة؟", "user_id": "saad"})
     assert r.status_code == 200 and "المصادر" in r.text
+
+
+def test_history_csv_keeps_old_rows_aligned_when_columns_change(tmp_path):
+    from ska.evaluation import HISTORY_FIELDS, append_history
+    import csv
+    p = tmp_path / "history.csv"
+    p.write_text("ts,release_id,leak_rate\n1,r1,0.0\n", encoding="utf-8")
+    append_history(p, {"ts": "2", "release_id": "r2", "leak_rate": 0.0, "git_commit": "abc"})
+    rows = list(csv.DictReader(open(p, encoding="utf-8")))
+    assert list(rows[0].keys()) == HISTORY_FIELDS
+    assert rows[0]["release_id"] == "r1" and rows[1]["git_commit"] == "abc"

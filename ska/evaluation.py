@@ -99,6 +99,7 @@ JUDGE_PROMPT = """You check whether answer sentences are supported by source pas
 For each numbered sentence, decide if every fact in it (numbers, conditions, names, steps) is
 stated in, or directly follows from, the sources. A sentence that only says a document has a
 different figure, or that something was flagged, is supported if the sources show both figures.
+Each sentence says which numbered sources it cites; judge it against those sources.
 Be strict about numbers. Reply in JSON only."""
 
 
@@ -106,7 +107,8 @@ def judge(client, release: Release, answer: Answer, run_id: str) -> tuple[float,
     """Returns (share of sentences supported, cost in USD)."""
     sources = "\n\n".join(f"[{c.n}] {c.title} / section {c.section} / version {c.version}\n{c.quote}"
                           for c in answer.citations)
-    sents = "\n".join(f"{i}. {s.text}" for i, s in enumerate(answer.sentences, 1))
+    sents = "\n".join(f"{i}. {s.text} (cites sources: {', '.join(f'[{n}]' for n in s.citations)})"
+                      for i, s in enumerate(answer.sentences, 1))
     resp = tracked_call(
         client, operation="judge_faithfulness", run_id=run_id, model=release.llm_model,
         max_tokens=2000, system=JUDGE_PROMPT,
@@ -269,13 +271,29 @@ def run_full(assistant: Assistant, items: list[dict], users: dict[str, User], *,
            "prompt_hash": rel.prompt_hash, "embed_model": rel.embed_model, "metrics": m, "rows": rows}
     (results_dir / f"{stamp}_{rel.id}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1),
                                                         encoding="utf-8")
-    history_path = Path(history_path or EVAL_DIR / "history.csv")
-    new = not history_path.exists()
-    with open(history_path, "a", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=HISTORY_FIELDS, extrasaction="ignore")
-        if new:
-            w.writeheader()
-        w.writerow({"ts": stamp, "git_commit": _git_commit(), "release_id": rel.id, "llm_model": rel.llm_model,
-                    "prompt_version": rel.prompt, "prompt_hash": rel.prompt_hash,
-                    "embed_model": rel.embed_model, **m})
+    append_history(Path(history_path or EVAL_DIR / "history.csv"), {
+        "ts": stamp, "git_commit": _git_commit(), "release_id": rel.id,
+        "llm_model": rel.llm_model, "prompt_version": rel.prompt, "prompt_hash": rel.prompt_hash,
+        "embed_model": rel.embed_model, **m})
     return out
+
+
+def append_history(path: Path, row: dict) -> None:
+    """Append one run. If the columns changed since the file was started, rewrite it with
+    the new header so old rows stay aligned (missing values stay empty)."""
+    rows = []
+    if path.exists():
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            same = reader.fieldnames == HISTORY_FIELDS
+    else:
+        same = False
+    if same:
+        with open(path, "a", newline="", encoding="utf-8") as f:
+            csv.DictWriter(f, fieldnames=HISTORY_FIELDS, extrasaction="ignore").writerow(row)
+        return
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=HISTORY_FIELDS, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(rows + [row])
