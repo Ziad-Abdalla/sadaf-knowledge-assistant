@@ -35,7 +35,7 @@ flowchart TD
 
 | Requirement | Mechanism | Where | Proven by |
 |---|---|---|---|
-| **Q49** Answer from company documents only | Model only sees retrieved chunks; prompt forbids outside knowledge; structured output forces a source on every sentence | `ska/generation.py`, `ska/prompts/answer_v2.md` | `test_assistant.py::test_answer_has_citation_with_version_and_date` |
+| **Q49** Answer from company documents only | Model only sees retrieved chunks; prompt forbids outside knowledge; structured output forces a source on every sentence | `ska/generation.py`, `ska/prompts/answer_v3.md` | `test_assistant.py::test_answer_has_citation_with_version_and_date` |
 | **Q49** Don't answer confidently when it isn't there | 1) Relevance gate on the best cosine score: refuse without a model call. 2) The model may return `not_in_documents`. 3) Post-check flags any sentence whose numbers aren't in its cited source | `ska/assistant.py` (gate), `ska/grounding.py` | `test_relevance_gate_refuses_without_calling_the_model`, `test_invented_number_is_flagged`, eval refusal recall |
 | **Q49** Use the latest version | `supersedes` + `effective_date` metadata decide status; superseded chunks are not candidates unless the user asks about history; answer states version and date | `ska/versions.py`, `ska/retrieval.py::candidate_mask` | `test_default_search_never_returns_superseded_version`, `test_latest_version_notice_mentions_the_replaced_version`, eval version correctness |
 | **Q49** Block documents the employee may not see | Role filter builds the candidate set **before** scoring; roles come from login, never from text; default deny; forbidden near-matches go to the audit log only | `ska/access.py`, `ska/retrieval.py` | `test_access_control.py` (crafted queries, injections, the memo's own text as the query), eval leak rate |
@@ -114,7 +114,7 @@ python -m pytest -m live                   # 3 live checks (real bge-m3 + Haiku,
 python -m ska eval                         # full eval + gate (about $0.025), appends eval/history.csv
 python -m ska eval --retrieval-only        # free: retrieval, leaks, gate calibration
 python -m ska release list
-python -m ska release use 2026-10-r1       # rollback to the previous model/prompt
+python -m ska release use 2026-10-r2       # rollback to the previous model/prompt
 python -m ska audit --summary release_id   # error and refusal rates per release
 ```
 
@@ -178,7 +178,7 @@ ska/
   audit.py         audit log and owner flags
   evaluation.py    eval runner, metrics, gate, history.csv
   web.py, templates/   Arabic RTL chat page + audit page
-  prompts/         answer_v1.md, answer_v2.md (versioned, hashed)
+  prompts/         answer_v1.md, answer_v2.md, answer_v3.md (versioned, hashed)
 config/            releases.yaml (rollback switch), users.yaml
 corpus/            31 synthetic documents (2 as PDF) + PDF sources
 eval/              questions.yaml, gate.yaml, history.csv, results/
