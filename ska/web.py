@@ -56,6 +56,14 @@ def create_app(assistant: Assistant | None = None, users: dict | None = None) ->
     @app.post("/ask", response_class=HTMLResponse)
     def ask(request: Request, question: str = Form(...), user_id: str = Form("saad"),
             history: str | None = Form(None)):
+        return answer_page(request, question, user_id, history)
+
+    @app.get("/ask", response_class=HTMLResponse)
+    def ask_link(request: Request, q: str, user_id: str = "saad", history: str | None = None):
+        """Same as the form, as a link (handy for sharing a question, and for screenshots)."""
+        return answer_page(request, q, user_id, history)
+
+    def answer_page(request: Request, question: str, user_id: str, history: str | None):
         user = users.get(user_id) or users["saad"]
         a = get_assistant()
         answer = a.ask(question, user, include_history=True if history else None)

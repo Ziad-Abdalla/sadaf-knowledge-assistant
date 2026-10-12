@@ -28,7 +28,7 @@
 </table>
 
 <h2>Last 30 questions</h2>
-<table><tr><th>time</th><th>user / roles</th><th>question</th><th>decision</th><th>release · model · prompt</th><th>retrieved</th><th>blocked (access / version)</th><th>restricted matches</th><th>flags</th><th>cost $</th><th>ms</th></tr>
+<table><tr><th>time</th><th>user / roles</th><th>question</th><th>decision</th><th>release · model · prompt</th><th>cited</th><th>blocked (access / version)</th><th>restricted matches</th><th>flags</th><th>cost $</th><th>ms</th></tr>
 {% for r in rows %}<tr>
 <td>{{ r.ts }}</td><td>{{ r.user_id }}<br>{{ r.roles }}</td><td class="q">{{ r.question }}</td>
 <td class="{{ r.decision }}">{{ r.decision }}<br><small>{{ r.reason }}</small></td>

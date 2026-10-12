@@ -81,3 +81,9 @@ def test_audit_page_lists_questions(make_assistant, users):
     a.ask("كم المياومة؟", users["saad"])
     r = TestClient(create_app(a, users)).get("/admin/audit")
     assert r.status_code == 200 and "كم المياومة" in r.text
+
+
+def test_question_as_a_link(make_assistant, users):
+    r = TestClient(create_app(make_assistant(), users)).get(
+        "/ask", params={"q": "كم المياومة اليومية داخل المملكة؟", "user_id": "saad"})
+    assert r.status_code == 200 and "المصادر" in r.text
