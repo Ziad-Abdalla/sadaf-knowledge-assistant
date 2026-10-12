@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS queries (
 CREATE TABLE IF NOT EXISTS flags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL, request_id TEXT, kind TEXT, owner TEXT,
-    doc_ids TEXT, topic TEXT, detail TEXT, status TEXT DEFAULT 'open'
+    doc_ids TEXT, topic TEXT, detail TEXT, status TEXT DEFAULT 'open',
+    count INTEGER DEFAULT 1, last_ts TEXT
 );
 """
 
@@ -46,6 +47,10 @@ class AuditLog:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as c:
             c.executescript(SCHEMA)
+            cols = {r[1] for r in c.execute("PRAGMA table_info(flags)")}
+            if "count" not in cols:          # logs made before flags were de-duplicated
+                c.execute("ALTER TABLE flags ADD COLUMN count INTEGER DEFAULT 1")
+                c.execute("ALTER TABLE flags ADD COLUMN last_ts TEXT")
 
     def _conn(self):
         conn = sqlite3.connect(self.path)
@@ -67,10 +72,19 @@ class AuditLog:
 
     def flag(self, *, request_id: str, kind: str, owner: str, doc_ids: list[str], topic: str,
              detail: str) -> None:
+        """One open flag per owner and document pair. Asking again only raises its count,
+        so the owner gets one ticket that shows how often staff hit the conflict."""
+        key = json.dumps(sorted(doc_ids))
         with self._conn() as c:
-            c.execute("INSERT INTO flags (ts, request_id, kind, owner, doc_ids, topic, detail) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                      (self._now(), request_id, kind, owner, json.dumps(doc_ids), topic, detail))
+            open_flag = c.execute("SELECT id FROM flags WHERE status='open' AND kind=? AND owner=? "
+                                  "AND doc_ids=?", (kind, owner, key)).fetchone()
+            if open_flag:
+                c.execute("UPDATE flags SET count = count + 1, last_ts = ? WHERE id = ?",
+                          (self._now(), open_flag["id"]))
+                return
+            c.execute("INSERT INTO flags (ts, request_id, kind, owner, doc_ids, topic, detail, "
+                      "last_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                      (self._now(), request_id, kind, owner, key, topic, detail, self._now()))
 
     def recent(self, n: int = 20) -> list[dict]:
         with self._conn() as c:

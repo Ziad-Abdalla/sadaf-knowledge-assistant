@@ -23,8 +23,8 @@
 </table>
 
 <h2>Open flags for document owners</h2>
-<table><tr><th>time</th><th>kind</th><th>owner</th><th>documents</th><th>topic</th></tr>
-{% for f in flags %}<tr><td>{{ f.ts }}</td><td>{{ f.kind }}</td><td>{{ f.owner }}</td><td><code>{{ f.doc_ids }}</code></td><td class="q">{{ f.topic }}</td></tr>{% endfor %}
+<table><tr><th>time</th><th>kind</th><th>owner</th><th>documents</th><th>times hit</th><th>first topic</th></tr>
+{% for f in flags %}<tr><td>{{ f.ts }}</td><td>{{ f.kind }}</td><td>{{ f.owner }}</td><td><code>{{ f.doc_ids }}</code></td><td>{{ f.count }}</td><td class="q">{{ f.topic }}</td></tr>{% endfor %}
 </table>
 
 <h2>Last 30 questions</h2>

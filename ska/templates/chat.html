@@ -60,7 +60,7 @@
     <h1>مساعد المعرفة الداخلي</h1>
     <div class="sub">يجيب من مستندات الشركة فقط، مع ذكر المصدر والإصدار — بيانات تجريبية مُصطنعة</div>
   </div>
-  <span class="tag">الإصدار {{ release.id }}</span>
+  <span class="tag">الإصدار <bdi dir="ltr">{{ release.id }}</bdi></span>
 </header>
 <main>
   <form class="ask" method="post" action="/ask">
@@ -81,7 +81,7 @@
   </form>
 
   {% if answer %}
-  <div class="qline">السؤال: {{ answer.question }}</div>
+  <div class="qline">السؤال: <bdi>{{ answer.question }}</bdi></div>
   {% if answer.status in ("refused", "error") %}
   <div class="answer refused">
     <h3>{% if answer.status == "refused" %}لا أستطيع الإجابة من المستندات{% else %}حدث خطأ{% endif %}</h3>

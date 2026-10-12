@@ -149,3 +149,11 @@ def test_answer_language_is_set_by_code(make_assistant, users):
     a.ask("كم المياومة داخل المملكة؟", users["saad"])
     assert "<answer_language>English</answer_language>" in client.sent[0]["messages"][0]["content"]
     assert "<answer_language>Arabic</answer_language>" in client.sent[1]["messages"][0]["content"]
+
+
+def test_repeated_conflict_raises_one_flag_with_a_count(audit):
+    for _ in range(3):
+        audit.flag(request_id="r", kind="conflict", owner="o@x", doc_ids=["B", "A"], topic="t",
+                   detail="d")
+    flags = audit.open_flags()
+    assert len(flags) == 1 and flags[0]["count"] == 3
