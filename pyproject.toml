@@ -1,0 +1,36 @@
+[project]
+name = "sadaf-knowledge-assistant"
+version = "0.1.0"
+description = "Answers staff questions from company documents only: permissions before retrieval, latest version by default, citations, and refusal when the answer isn't there."
+requires-python = ">=3.11"
+dependencies = [
+    "agent-cost-tracker",   # pip install -e ../agent-cost-tracker (NOT the unrelated PyPI package)
+    "anthropic>=1.0",
+    "pydantic>=2",
+    "numpy",
+    "pyyaml",
+    "pypdf",
+    "sentence-transformers",
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+    "python-multipart",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx", "fpdf2"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["ska"]
+
+[tool.setuptools.package-data]
+ska = ["templates/*.html", "prompts/*.md"]
+
+[tool.pytest.ini_options]
+markers = ["live: calls the real Claude API and loads the real embedding model (python -m pytest -m live)"]
+addopts = "-m 'not live'"
