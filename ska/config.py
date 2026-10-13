@@ -90,7 +90,8 @@ def set_active_release(rid: str, path: Path | None = None) -> None:
         raise KeyError(f"Unknown release {rid!r}. Known: {', '.join(releases)}")
     lines = path.read_text(encoding="utf-8").splitlines()
     lines = [f'active: "{rid}"' if line.startswith("active:") else line for line in lines]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with open(path, "w", encoding="utf-8", newline="\n") as f:    # keep LF endings on Windows
+        f.write("\n".join(lines) + "\n")
 
 
 def last_eval_gate(rid: str, history: Path | None = None) -> str | None:
