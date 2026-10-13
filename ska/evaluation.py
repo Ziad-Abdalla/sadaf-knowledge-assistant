@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from .access import User, can_read
 from .assistant import Answer, Assistant
 from .config import ROOT, Release
+from .grounding import WARN_FLAGS
 from .retrieval import search
 from .versions import asks_for_history
 
@@ -48,21 +49,22 @@ def run_retrieval(index, embedder, release: Release, items: list[dict], users: d
     rows = []
     for it in items:
         user = users[it["user"]]
-        r = search(index, embedder, it["question"], user, top_k=release.top_k, rrf_k=release.rrf_k,
+        r = search(index, embedder, it["question"], user, top_k=release.top_k,
                    history=asks_for_history(it["question"]), today=today)
         ranked = [h.doc.doc_id for h in r.hits]
         gold = it.get("docs") or []
         need_all = it["type"] in ("conflict", "history")
         first = next((i + 1 for i, d in enumerate(ranked) if d in gold), None)
         rows.append({
-            "id": it["id"], "type": it["type"], "expect": it["expect"], "best_dense": round(r.best_dense, 4),
+            "id": it["id"], "type": it["type"], "expect": it["expect"], "has_gold": bool(gold),
+            "best_dense": round(r.best_dense, 4),
             "ranked": ranked, "first_gold_rank": first,
             "hit@1": bool(gold) and (set(gold) <= set(ranked[:1]) if need_all else first == 1),
             "hit@3": bool(gold) and (set(gold) <= set(ranked[:3]) if need_all else bool(first and first <= 3)),
             "hit@k": bool(gold) and (set(gold) <= set(ranked) if need_all else first is not None),
             "retrieval_leak": any(not can_read(user, h.doc) for h in r.hits),
         })
-    with_gold = [r for r in rows if items[[i["id"] for i in items].index(r["id"])].get("docs")]
+    with_gold = [r for r in rows if r["has_gold"]]
     m = {
         "n": len(rows),
         "hit@1": _ratio(sum(r["hit@1"] for r in with_gold), len(with_gold)),
@@ -193,8 +195,7 @@ def summarize(rows: list[dict]) -> dict:
                                    sum(1 for r in rows if "conflict_ok" in r)),
         "leak_rate": _ratio(sum(r["leak"] for r in with_forbidden), len(with_forbidden)),
         "leaks_total": sum(r["leak"] for r in rows),
-        "flagged_rate": _ratio(sum(bool(set(r["flags"]) & {"number_not_in_source", "no_citation",
-                                                            "unknown_source"}) for r in answered),
+        "flagged_rate": _ratio(sum(bool(set(r["flags"]) & WARN_FLAGS) for r in answered),
                                len(answered)),
         "cost_usd": round(sum(r["cost_usd"] for r in rows) + sum(r.get("judge_cost", 0) for r in rows), 5),
         "avg_latency_ms": round(sum(r["latency_ms"] for r in rows) / max(1, len(rows))),
@@ -279,21 +280,11 @@ def run_full(assistant: Assistant, items: list[dict], users: dict[str, User], *,
 
 
 def append_history(path: Path, row: dict) -> None:
-    """Append one run. If the columns changed since the file was started, rewrite it with
-    the new header so old rows stay aligned (missing values stay empty)."""
-    rows = []
-    if path.exists():
-        with open(path, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-            same = reader.fieldnames == HISTORY_FIELDS
-    else:
-        same = False
-    if same:
-        with open(path, "a", newline="", encoding="utf-8") as f:
-            csv.DictWriter(f, fieldnames=HISTORY_FIELDS, extrasaction="ignore").writerow(row)
-        return
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    """Append one run. A new file gets the header first. (If the columns ever change, start
+    a new CSV instead of mixing two layouts in one file.)"""
+    new = not path.exists()
+    with open(path, "a", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=HISTORY_FIELDS, extrasaction="ignore")
-        w.writeheader()
-        w.writerows(rows + [row])
+        if new:
+            w.writeheader()
+        w.writerow(row)

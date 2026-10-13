@@ -9,6 +9,7 @@
 """
 
 import argparse
+import dataclasses
 import json
 import sys
 
@@ -33,7 +34,7 @@ def cmd_ask(args):
     from .assistant import Assistant
 
     a = Assistant.from_config()
-    ans = a.ask(args.question, _users()[args.user], include_history=True if args.history else None)
+    ans = a.ask(args.question, _users()[args.user], force_history=args.history)
     print(ans.text)
     print(f"\n[{ans.status}{' / ' + ans.reason if ans.reason else ''}] release={ans.release_id} "
           f"model={ans.model} prompt={ans.prompt_hash} best_dense={ans.best_dense:.3f} "
@@ -48,7 +49,7 @@ def cmd_eval(args):
     release = config.active_release()
     embed_name = args.embed_model or release.embed_model
     if args.embed_model:
-        release = config.Release(**{**release.__dict__, "embed_model": embed_name})
+        release = dataclasses.replace(release, embed_model=embed_name)
     embedder = load_embedder(embed_name)
     index = Index.load(index_path(config.INDEX_DIR, embed_name))
     items, users = load_items(), _users()
@@ -79,6 +80,8 @@ def cmd_audit(args):
         rows = log.summary_by(args.summary)
     else:
         rows = log.recent(args.last)
+    if not rows:
+        print("No audit rows yet. Ask a question first (python -m ska ask ...).")
     for r in rows:
         print(json.dumps(r, ensure_ascii=False))
 
@@ -88,6 +91,10 @@ def cmd_release(args):
     if args.action == "use":
         config.set_active_release(args.id)
         print(f"Active release is now {args.id} (was {active}).")
+        gate = config.last_eval_gate(args.id)
+        if gate != "pass":
+            print(f"Warning: the last eval of {args.id} was "
+                  f"{gate or 'never run'}. Check eval/history.csv before relying on it.")
         return
     for rid, r in releases.items():
         mark = "*" if rid == active else " "

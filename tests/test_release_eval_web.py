@@ -1,5 +1,7 @@
 import shutil
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from ska import config
@@ -24,6 +26,26 @@ def test_rollback_switch_rewrites_only_the_active_line(tmp_path):
 def test_env_var_pins_a_release(monkeypatch):
     monkeypatch.setenv("SKA_RELEASE", "2026-10-r1")
     assert config.active_release().prompt == "answer_v1"
+
+
+def test_unknown_external_policy_or_setting_stops_loading(tmp_path):
+    path = tmp_path / "releases.yaml"
+    good = config.RELEASES_FILE.read_text(encoding="utf-8")
+    path.write_text(good.replace("    external_policy: redact", "    external_policy: local-only", 1),
+                    encoding="utf-8")
+    with pytest.raises(ValueError, match="external_policy"):
+        config.load_releases(path)
+    path.write_text(good.replace("    top_k: 6", "    topk: 6", 1), encoding="utf-8")
+    with pytest.raises(TypeError):
+        config.load_releases(path)
+
+
+def test_last_eval_gate_reads_the_newest_run_of_a_release(tmp_path):
+    h = tmp_path / "history.csv"
+    h.write_text("ts,release_id,gate\n1,r2,pass\n2,r2,FAIL\n3,r3,pass\n", encoding="utf-8")
+    assert config.last_eval_gate("r2", h) == "FAIL"
+    assert config.last_eval_gate("r3", h) == "pass"
+    assert config.last_eval_gate("r1", h) is None
 
 
 def test_each_prompt_version_has_its_own_hash():
@@ -89,12 +111,12 @@ def test_question_as_a_link(make_assistant, users):
     assert r.status_code == 200 and "المصادر" in r.text
 
 
-def test_history_csv_keeps_old_rows_aligned_when_columns_change(tmp_path):
+def test_history_csv_gets_a_header_once_then_one_row_per_run(tmp_path):
     from ska.evaluation import HISTORY_FIELDS, append_history
     import csv
     p = tmp_path / "history.csv"
-    p.write_text("ts,release_id,leak_rate\n1,r1,0.0\n", encoding="utf-8")
-    append_history(p, {"ts": "2", "release_id": "r2", "leak_rate": 0.0, "git_commit": "abc"})
+    append_history(p, {"ts": "1", "release_id": "r1", "git_commit": "abc"})
+    append_history(p, {"ts": "2", "release_id": "r2", "git_commit": "def"})
     rows = list(csv.DictReader(open(p, encoding="utf-8")))
     assert list(rows[0].keys()) == HISTORY_FIELDS
-    assert rows[0]["release_id"] == "r1" and rows[1]["git_commit"] == "abc"
+    assert [r["release_id"] for r in rows] == ["r1", "r2"] and rows[1]["git_commit"] == "def"

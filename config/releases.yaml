@@ -1,5 +1,8 @@
-# Every setting that can change an answer is pinned in a release.
-# Rollback = point `active` at the previous release (python -m ska release use <id>),
+# A release pins the settings that change answers without a code change: model, prompt
+# file, effort, embedding model, top_k, the relevance threshold (min_dense) and what to do
+# with highly confidential text (external_policy: redact | local_only). Code changes are not
+# pinned here; every eval run records the git commit in eval/history.csv.
+# Rollback = point `active` at an earlier release (python -m ska release use <id>),
 # or set SKA_RELEASE=<id> in the environment for one process. Every audit row and every
 # eval run records the release id, model, prompt version and prompt hash.
 active: "2026-10-r3"
@@ -21,7 +24,7 @@ releases:
     top_k: 6
     min_dense: 0.46
     external_policy: redact
-    notes: "Adds conflict rules (policy beats minutes), dialect handling, history wording."
+    notes: "Adds conflict rules (policy beats minutes), dialect handling, history wording. Failed the eval gate (version_correct 0.875)."
   "2026-10-r3":
     llm_model: claude-haiku-5-5
     prompt: answer_v3
@@ -30,4 +33,4 @@ releases:
     top_k: 6
     min_dense: 0.46
     external_policy: redact
-    notes: "Fixes r2's gate failure: answer language set by code; English->Arabic glossary for keyword search; history questions retrieve twice as many chunks."
+    notes: "Prompt v3. Shipped with code changes that fixed r2's gate failure (commit 388c971): answer language set by code, English->Arabic glossary for keyword search, history questions retrieve twice as many chunks. Those code changes apply to every release."
