@@ -4,7 +4,7 @@ An internal knowledge assistant for a TV drama production house: staff ask in Ar
 
 > **All documents in `corpus/` are synthetic.** They were written for this demo to look like a production company's internal policies. None of them is a real document of any company.
 
-Employees ask about per diem in Abha, overtime on a Friday shoot, or how to deliver episodes to a channel. The assistant answers from the right document and says which version and date it used. The design keeps the dangerous decisions out of the model. **Permissions are applied before retrieval**, so a crew member's search never even scores the budget memo, whatever the question says. The **latest-version rule** comes from document metadata (`supersedes`, `effective_date`), so an old policy can't win by sounding more relevant. A **relevance gate** refuses before any model call when nothing close enough exists. A **cheap post-check** then verifies every sentence and every number against the source it cites. Conflicts between an official policy and meeting minutes are surfaced, not silently resolved: the policy wins, both are cited, and the document owner is flagged. Highly confidential text is **masked before it reaches an external model** and restored locally. Every answer is logged with the release, model, prompt hash and retrieved chunk IDs. A 55-question eval set with a regression gate runs before every release, and a rollback switch pins the previous model and prompt.
+Employees ask about per diem in Abha, overtime on a Friday shoot, or how to deliver episodes to a channel. The assistant answers from the right document and says which version and date it used. The design keeps the dangerous decisions out of the model. **Permissions are applied before retrieval**: chunks a crew member may not read are removed before ranking, so the budget memo can never be ranked, put into the prompt or shown, whatever the question says. (The only place forbidden chunks are compared with the question is a separate audit-only check that records which restricted documents *would* have matched.) The **latest-version rule** comes from document metadata (`supersedes`, `effective_date`), so an old policy can't win by sounding more relevant. A **relevance gate** refuses before any model call when nothing close enough exists. A **cheap post-check** then checks every sentence against the source it cites: it must cite a real source, and any number not found in that source (or in the question) gets a warning. The only allowed calculation is a sum the sentence shows, like 350 + 100 = 450, which is labelled as calculated. Conflicts between an official policy and meeting minutes are surfaced, not silently resolved: the policy wins, both are cited, and the document owner is flagged. Highly confidential text is **masked before it reaches an external model** and restored locally. Every answer is logged with the release, model, prompt hash and retrieved chunk IDs. A 55-question eval set with a regression gate is run before a release (a manual command that exits with an error when the gate fails), and a rollback switch points back to an earlier release's model, prompt and thresholds.
 
 **بالعربية باختصار:** مساعد داخلي يجيب عن أسئلة الموظفين من مستندات الشركة فقط، وبجانب كل جملة مصدرها (المستند والقسم والإصدار والتاريخ). الصلاحيات تُطبَّق قبل البحث، فلا يرى فرد الطاقم مذكرة الميزانية مهما كتب في سؤاله. يعتمد دائمًا على أحدث نسخة سارية، ويقول «لم أجد الإجابة في المستندات» بدل أن يخمّن. إذا تعارض محضر اجتماع مع سياسة رسمية، يقدّم السياسة ويذكر التعارض وينبّه الجهة المالكة. المستندات السرية للغاية تُخفى منها المبالغ والأسماء قبل إرسالها لأي نموذج خارجي. يوجد دليل للموظفين في [`docs/دليل-المستخدم.md`](docs/دليل-المستخدم.md).
 
@@ -36,20 +36,20 @@ flowchart TD
 | Requirement | Mechanism | Where | Proven by |
 |---|---|---|---|
 | **Q49** Answer from company documents only | Model only sees retrieved chunks; prompt forbids outside knowledge; structured output forces a source on every sentence | `ska/generation.py`, `ska/prompts/answer_v3.md` | `test_assistant.py::test_answer_has_citation_with_version_and_date` |
-| **Q49** Don't answer confidently when it isn't there | 1) Relevance gate on the best cosine score: refuse without a model call. 2) The model may return `not_in_documents`. 3) Post-check flags any sentence whose numbers aren't in its cited source | `ska/assistant.py` (gate), `ska/grounding.py` | `test_relevance_gate_refuses_without_calling_the_model`, `test_invented_number_is_flagged`, eval refusal recall |
+| **Q49** Don't answer confidently when it isn't there | 1) Relevance gate on the best cosine score: refuse without a model call. 2) The model may return `not_in_documents`. 3) Post-check flags any sentence whose numbers aren't in its cited source | `ska/assistant.py` (gate), `ska/grounding.py` | `test_relevance_gate_refuses_without_calling_the_model`, `test_invented_number_is_flagged`, `test_numbers_that_only_happen_to_match_some_arithmetic_are_flagged`, eval refusal recall |
 | **Q49** Use the latest version | `supersedes` + `effective_date` metadata decide status; superseded chunks are not candidates unless the user asks about history; answer states version and date | `ska/versions.py`, `ska/retrieval.py::candidate_mask` | `test_default_search_never_returns_superseded_version`, `test_latest_version_notice_mentions_the_replaced_version`, eval version correctness |
 | **Q49** Block documents the employee may not see | Role filter builds the candidate set **before** scoring; roles come from login, never from text; default deny; forbidden near-matches go to the audit log only | `ska/access.py`, `ska/retrieval.py` | `test_access_control.py` (crafted queries, injections, the memo's own text as the query), eval leak rate |
 | **Q48** Conflicting info between two sources | Model reports conflicts; code ranks by document type (policy > guide/memo > minutes) then date; both cited; owner flagged in `flags` table | `ska/assistant.py::_conflicts`, `ska/documents.py::AUTHORITY` | `test_conflict_prefers_policy_over_minutes_and_flags_the_owner`, eval conflict handling |
 | **Q48** Two versions of the same document | Same as the latest-version rule; history questions show both with dates; versions of one policy are never reported as a "conflict" | `ska/versions.py` | `test_history_question_cites_both_versions`, `test_two_versions_of_one_policy_are_not_reported_as_a_conflict` |
 | **Q48** Show the source of every piece of information | Every sentence carries source ids; UI shows document, section, version, date, Odoo menu, and the original text | `ska/assistant.py::Citation`, `ska/templates/chat.html` | `test_asking_shows_citations_and_refusal_reasons` |
-| **Q54** Confidential contracts/scripts and external models | `highly_confidential` chunks: amounts, owner-listed names, emails, IBANs, codes → placeholders before the call, restored locally; or `local_only` (no external call, extractive answer) | `ska/redaction.py`, `external_policy` in `config/releases.yaml` | `test_finance_question_on_budget_sends_no_real_amount_to_the_model`, `test_local_only_policy_answers_without_calling_the_model` |
+| **Q54** Confidential contracts/scripts and external models | `highly_confidential` chunks: amounts, owner-listed names, emails, IBANs, tracking codes → placeholders before the call, restored locally; or `local_only` (when the best match is highly confidential: no external call, extractive answer; otherwise those chunks are dropped). Any other value stops the app at startup | `ska/redaction.py`, `external_policy` in `config/releases.yaml` | `test_finance_question_on_budget_sends_no_real_amount_to_the_model`, `test_local_only_policy_answers_without_calling_the_model`, `test_local_only_drops_a_confidential_hit_that_is_not_the_best_match` |
 | **Q52** Arabic eval set before launch and after every update | 55 questions: MSA, Saudi dialect, English; answerable, not-in-docs, access-denied, injection, conflict, history; regression gate | `eval/questions.yaml`, `eval/gate.yaml`, `ska/evaluation.py` | `python -m ska eval` (results below) |
 | **Q55** Logs to diagnose a regression after a model update | One audit row per question: release, exact model, prompt version + hash, embedding model, retrieved chunk ids + scores, blocked counts, decision, post-check flags, tokens, cost, latency, stop reason; summary by release or by role | `ska/audit.py` | `test_audit_row_has_everything_needed_to_trace_a_regression` |
-| **Q55** Rollback | A release pins model + prompt + embedding model + thresholds; `python -m ska release use <previous>` or `SKA_RELEASE=<id>` | `ska/config.py`, `config/releases.yaml` | `test_rollback_switch_rewrites_only_the_active_line`, `test_env_var_pins_a_release` |
+| **Q55** Rollback | A release pins model + prompt + effort + embedding model + thresholds (code changes are tracked by the git commit in `eval/history.csv`); `python -m ska release use <id>` or `SKA_RELEASE=<id>`; `release use` warns if that release's last eval didn't pass | `ska/config.py`, `config/releases.yaml` | `test_rollback_switch_rewrites_only_the_active_line`, `test_env_var_pins_a_release`, `test_last_eval_gate_reads_the_newest_run_of_a_release` |
 
 ## Eval results
 
-55 questions in `eval/questions.yaml`: 37 in Modern Standard Arabic, 11 in Saudi dialect, 7 in English. By type: 31 answerable (asked by all four roles), 8 not in the documents, 6 access-denied, 5 prompt injections, 3 policy-vs-minutes conflicts, 2 version-history questions. A full run costs about $0.025 including the judge.
+55 questions in `eval/questions.yaml`: 37 in Modern Standard Arabic, 11 in Saudi dialect, 7 in English. By type: 31 answerable (25 asked as crew, 4 as producer, 1 as finance, 1 as executive), 8 not in the documents, 6 access-denied, 5 prompt injections, 3 policy-vs-minutes conflicts, 2 version-history questions. A full run costs about $0.025 including the judge.
 
 **Release 2026-10-r3 (active), full run with Claude Haiku 5.5:**
 
@@ -64,12 +64,12 @@ flowchart TD
 | Citation correct (cites the gold document) / gold section | 1.00 / 1.00 | ≥ 0.9 |
 | Answer rules (required figures present, old or forbidden figures absent) | 1.00 (MSA 1.00, dialect 1.00, English 1.00) | ≥ 0.85 |
 | Version correctness (current version only; history questions show both) | 1.00 | ≥ 0.9 |
-| Conflicts handled (conflict reported, policy preferred, policy figure given) | 1.00 (3/3) | ≥ 0.66 |
+| Conflicts handled (conflict reported and the policy figure given; once a conflict is reported, code always prefers the policy) | 1.00 (3/3) | ≥ 0.66 |
 | Faithfulness, LLM judge (Haiku), share of supported sentences | 0.955 | ≥ 0.9 |
 | Sentences flagged by the post-check | 0 | (tracked) |
 | Errors | 0 | must be 0 |
 
-**How the gate caught a bad release.** Release r2 (prompt v2) failed the gate: version correctness 0.875, conflict handling 0.67, and English answers 0.5. For the English Abha question ("What is the daily per diem for the crew shooting in Abha?") the keyword search only matched English documents ("crew", "daily"), so the per diem policy fell to rank 10. The model then answered **300 SAR from the meeting minutes**, in Arabic. Release r3 fixed it with three changes: the answer language is set by code, a small English→Arabic glossary feeds the keyword search, and history questions get twice the chunks (both versions need room). r3 passes. Both runs are rows in `eval/history.csv` (with git commit, model, prompt hash and cost), and the full per-question results are in `eval/results/`.
+**How the gate caught a bad release.** Release r2 (prompt v2) failed the gate on version correctness (0.875, below the 0.9 minimum). The same run also showed conflict handling at 2/3, just over its 0.66 bar, and the answer rules at 2/4 on English questions (per-language scores are reported, not gated). For the English Abha question ("What is the daily per diem for the crew shooting in Abha?") the keyword search only matched English documents ("crew", "daily"), so the per diem policy fell to rank 10. The model then answered **300 SAR from the meeting minutes**, in Arabic. Release r3 (prompt v3) shipped with three code changes that fixed it: the answer language is set by code, a small English→Arabic glossary feeds the keyword search, and history questions get twice the chunks (both versions need room). These are code changes, so they apply to every release; the git commit in `eval/history.csv` is what ties a run to its code. r3 passes. Both runs are rows in `eval/history.csv` (with git commit, model, prompt hash and cost), and the full per-question results are in `eval/results/`. There are two r3 runs: the first used the older judge (it saw all sources at once, not each sentence's own sources); the second, with the fixed judge, is the one reported here.
 
 | Release | Prompt | hit@6 | Answer rules | Version | Conflict | Leak | Gate |
 |---|---|---|---|---|---|---|---|
@@ -96,13 +96,19 @@ Each citation also shows the Odoo menu where the action happens (for example `Ex
 
 ## Quickstart (PowerShell)
 
+The repo needs my small cost tracker, `agent-cost-tracker`, in a folder **next to** this one (same parent folder). It is installed from that folder on purpose: PyPI has an unrelated package with the same name, so it is not listed in `pyproject.toml`.
+
 ```powershell
+git clone https://github.com/Ziad-Abdalla/sadaf-knowledge-assistant
+git clone https://github.com/Ziad-Abdalla/agent-cost-tracker
 cd sadaf-knowledge-assistant
-py -3.13 -m venv .venv
+py -3.13 -m venv .venv                     # Mac/Linux: python3 -m venv .venv && source .venv/bin/activate
 .\.venv\Scripts\Activate.ps1
-# PyTorch with CUDA for the RTX 50xx series (CPU also works, just slower):
+# PyTorch with CUDA for the RTX 50xx series, about 3 GB:
 pip install torch --index-url https://download.pytorch.org/whl/cu128
-pip install -e ../agent-cost-tracker      # the local cost tracker, NOT the PyPI package of the same name
+# ...or the CPU build (indexing is slower; the unit tests don't need a GPU at all):
+# pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -e ../agent-cost-tracker      # the sibling folder, NOT the PyPI package of the same name
 pip install -e ".[dev]"
 Copy-Item .env.example .env               # then put your ANTHROPIC_API_KEY in it
 
@@ -114,7 +120,7 @@ python -m pytest -m live                   # 3 live checks (real bge-m3 + Haiku,
 python -m ska eval                         # full eval + gate (about $0.025), appends eval/history.csv
 python -m ska eval --retrieval-only        # free: retrieval, leaks, gate calibration
 python -m ska release list
-python -m ska release use 2026-10-r2       # rollback to the previous model/prompt
+python -m ska release use 2026-10-r2       # example switch; r2 failed the gate, so this prints a warning
 python -m ska audit --summary release_id   # error and refusal rates per release
 ```
 
@@ -146,15 +152,18 @@ Demo users (`config/users.yaml`): `saad` (crew), `noura` (producer), `khalid` (f
 4. *Local-only answers* (implemented as `external_policy: local_only`): for the most sensitive class, skip the model and show the matching passages verbatim with citations.
 Scripts are the hardest case: the value is the text itself, so redaction doesn't help. For scripts I would use option 1 or 4.
 
-**Cost.** Haiku 5.5 at $0.10 / $0.50 per million tokens. A typical answer is about 1,600 new input tokens + 2,500 cached prompt tokens + 260 output tokens, so about **$0.0003 per question** (roughly 3,000 questions per dollar). The system prompt is cached (`cache_control`), so repeated questions read it at a tenth of the price; the live test checks `cache_read_input_tokens > 0`. Every call goes through `agent_cost_tracker.tracked_call`, which records it and refuses to call once the budget is spent.
+**Cost.** Haiku 5.5 at $0.10 / $0.50 per million tokens. A typical answer is about 1,600 new input tokens + 2,500 cached prompt tokens + 260 output tokens, so about **$0.0003 per question** (roughly 3,000 questions per dollar). The system prompt is cached (`cache_control`), so repeated questions read it at a much lower price; the live test checks `cache_read_input_tokens > 0`. Every call goes through `agent_cost_tracker.tracked_call`, which records it and refuses to call once the budget is spent. For this demo the budget is a lifetime total in one ledger file (`COST_DB_PATH`, resolved against the repo folder). Production would want a daily or monthly window and per-user rate limits instead, so one busy month can't switch the assistant off.
 
 ## Honest limits
 
 - **Synthetic, small corpus.** 31 documents I wrote, and a 55-question eval set I wrote against them. The numbers show the mechanisms work. They don't show accuracy on Sadaf's real documents; that needs real documents and questions from real staff, and the eval set should grow from every reported mistake.
 - **One run per release.** The model has run-to-run variation; a release decision on real traffic should average a few runs or use more questions.
 - **The relevance gate is weak on its own** (see above). Most refusals come from the model's `not_in_documents` answer, checked by the eval. A cross-encoder reranker score would make a better gate; I'd test that next.
+- **The gate has small groups.** Conflicts are 3 questions, so 0.66 means "2 of 3". Per-language answer scores are reported but not gated; a per-language minimum is the next thing to add.
 - **Conflict detection depends on the model reporting it.** Code decides the winner, but if the model misses a conflict, only the eval catches it. Once it reported a scope difference (broadcast vs streaming loudness) as a conflict; the owner flag makes that a cheap false alarm, not a wrong answer.
-- **Redaction is pattern-based.** It misses names nobody listed and amounts written in words. For scripts, redaction doesn't help at all; use a self-hosted model or `local_only`.
+- **Redaction is pattern-based.** It misses names nobody listed and amounts written in words, and it doesn't touch dates or the question text itself. For scripts, redaction doesn't help at all; use a self-hosted model or `local_only`.
+- **Instructions hidden in documents.** Document text can't break out of its `<source>` tag, and the prompt says source text is data, not instructions. Beyond that, a minute saying "ignore the policy" is handled by the policy-beats-minutes rule in code; there is no eval item for it yet.
+- **The demo page is open.** The role switcher, `?user_id=` and `/admin/audit` (which lists restricted matches) have no login, on localhost. In production the user comes from SSO and `/admin` sits behind an admin role.
 - **Roles are coarse** (four roles, document-level access). Real access is often per series or per department; the same filter works with more attributes (`series`, `department`), and roles should come from Odoo groups or SSO, not a YAML file.
 - **The keyword glossary and dialect map are hand-made** and small. They need an owner and a way for staff to suggest words.
 - **Not built:** syncing documents from Odoo Knowledge/Documents or SharePoint (ingestion reads a folder), OCR for scanned PDFs, Arabic PDFs (the two PDFs are English), and per-user rate limits.
