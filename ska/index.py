@@ -47,11 +47,17 @@ def _doc_from_json(s: str) -> Document:
     return Document(**d)
 
 
-def build_index(corpus_dir: Path, embedder: Embedder, out_path: Path) -> dict:
+def _load_and_embed(corpus_dir: Path, embedder: Embedder):
+    """Read the documents, cut them into chunks, embed each chunk with its title."""
     docs = load_corpus(corpus_dir)
     titles = {d.doc_id: d.title for d in docs}
     chunks = [c for d in docs for c in chunk_document(d)]
     vectors = embedder.encode_docs([c.embed_text(titles[c.doc_id]) for c in chunks])
+    return docs, chunks, vectors
+
+
+def build_index(corpus_dir: Path, embedder: Embedder, out_path: Path) -> dict:
+    docs, chunks, vectors = _load_and_embed(corpus_dir, embedder)
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
@@ -97,8 +103,5 @@ class Index:
     @classmethod
     def from_corpus(cls, corpus_dir: Path, embedder: Embedder) -> "Index":
         """Build in memory, without a file. Used by tests."""
-        docs = load_corpus(corpus_dir)
-        by_id = {d.doc_id: d for d in docs}
-        chunks = [c for d in docs for c in chunk_document(d)]
-        matrix = embedder.encode_docs([c.embed_text(by_id[c.doc_id].title) for c in chunks])
-        return cls(by_id, chunks, matrix, embedder.name)
+        docs, chunks, vectors = _load_and_embed(corpus_dir, embedder)
+        return cls({d.doc_id: d for d in docs}, chunks, vectors, embedder.name)

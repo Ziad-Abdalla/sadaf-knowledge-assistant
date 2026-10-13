@@ -3,8 +3,10 @@ name = "sadaf-knowledge-assistant"
 version = "0.1.0"
 description = "Answers staff questions from company documents only: permissions before retrieval, latest version by default, citations, and refusal when the answer isn't there."
 requires-python = ">=3.11"
+# Also needs agent-cost-tracker, my own small package in a sibling folder. It is installed
+# by hand (pip install -e ../agent-cost-tracker, see the README) and deliberately not listed
+# here: PyPI has an unrelated package with the same name, and pip would pick that one.
 dependencies = [
-    "agent-cost-tracker",   # pip install -e ../agent-cost-tracker (NOT the unrelated PyPI package)
     "anthropic>=1.0",
     "pydantic>=2",
     "numpy",

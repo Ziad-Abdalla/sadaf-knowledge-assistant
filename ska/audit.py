@@ -47,10 +47,6 @@ class AuditLog:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as c:
             c.executescript(SCHEMA)
-            cols = {r[1] for r in c.execute("PRAGMA table_info(flags)")}
-            if "count" not in cols:          # logs made before flags were de-duplicated
-                c.execute("ALTER TABLE flags ADD COLUMN count INTEGER DEFAULT 1")
-                c.execute("ALTER TABLE flags ADD COLUMN last_ts TEXT")
 
     def _conn(self):
         conn = sqlite3.connect(self.path)
