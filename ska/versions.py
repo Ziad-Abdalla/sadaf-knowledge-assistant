@@ -41,12 +41,3 @@ def statuses(docs: list[Document], today: date | None = None) -> dict[str, str]:
 def asks_for_history(question: str) -> bool:
     return bool(HISTORY_PATTERNS.search(normalize_search(question)))
 
-
-def current_version_of(doc_id: str, docs: list[Document], today: date | None = None) -> str:
-    """Follow the supersedes chain forward to the document in force today."""
-    by_replaced = {d.supersedes: d for d in docs if d.supersedes}
-    st = statuses(docs, today)
-    cur = doc_id
-    while cur in by_replaced and st[by_replaced[cur].doc_id] != NOT_YET:
-        cur = by_replaced[cur].doc_id
-    return cur

@@ -2,8 +2,10 @@
 
 Order of operations matters:
 1. Build the candidate set: chunks the user may read AND that are in the right version
-   state. Everything else is removed here, before any scoring, so a forbidden chunk cannot
-   be ranked, cannot reach the prompt, and cannot be leaked by a clever question.
+   state. Everything else is removed here, before ranking, so a forbidden chunk cannot be
+   ranked, cannot reach the prompt, and cannot be leaked by a clever question.
+   (One separate, audit-only check compares the question with forbidden chunks, to record
+   which restricted documents *would* have matched. See restricted_matches below.)
 2. Score only the candidates, two ways:
    - dense: cosine similarity between the question's embedding and each chunk's embedding
      (finds "بدل يومي" when the policy says "مياومة");
@@ -29,6 +31,7 @@ from .index import Index
 from .versions import CURRENT, SUPERSEDED, statuses
 
 POOL = 20  # how many results each method contributes before fusion
+RRF_K = 60  # the usual RRF constant: stops the very first rank from dominating
 
 
 @dataclass
@@ -87,8 +90,17 @@ def candidate_mask(index: Index, user: User, *, history: bool, today: date | Non
     return allowed, version_ok, st
 
 
+def restricted_matches(index: Index, qvec: np.ndarray, allowed: np.ndarray,
+                       threshold: float) -> list[str]:
+    """Audit only: which forbidden documents *would* have matched. This list goes to the
+    security log. It never feeds the ranking, the prompt or the answer."""
+    forbidden = np.flatnonzero(~allowed)
+    scores = index.matrix[forbidden] @ qvec
+    return sorted({index.chunks[i].doc_id for i, s in zip(forbidden, scores) if s >= threshold})
+
+
 def search(index: Index, embedder: Embedder, question: str, user: User, *, top_k: int = 6,
-           rrf_k: int = 60, history: bool = False, today: date | None = None,
+           history: bool = False, today: date | None = None,
            audit_threshold: float | None = None) -> RetrievalResult:
     if history:
         top_k *= 2      # old and new versions both need room in the prompt
@@ -97,20 +109,14 @@ def search(index: Index, embedder: Embedder, question: str, user: User, *, top_k
     cand = np.flatnonzero(mask)
 
     qvec = embedder.encode_query(question)
-    dense_all = index.matrix @ qvec
-
-    restricted = []
-    if audit_threshold is not None:
-        # Audit only: which forbidden documents *would* have matched. This list goes to the
-        # security log and is never shown to the user or sent to the model.
-        forbidden = np.flatnonzero(~allowed & (dense_all >= audit_threshold))
-        restricted = sorted({index.chunks[i].doc_id for i in forbidden})
+    restricted = ([] if audit_threshold is None
+                  else restricted_matches(index, qvec, allowed, audit_threshold))
 
     if len(cand) == 0:
         return RetrievalResult([], 0.0, 0, int((~allowed).sum()), int((allowed & ~version_ok).sum()),
                                history, restricted)
 
-    dense = dense_all[cand]
+    dense = index.matrix[cand] @ qvec           # ranking scores: allowed candidates only
     bm25 = bm25_scores(tokenize(question, query=True), [index.tokens[i] for i in cand])
 
     dense_order = np.argsort(-dense)[:POOL]
@@ -119,9 +125,9 @@ def search(index: Index, embedder: Embedder, question: str, user: User, *, top_k
     bm25_rank = {int(i): r + 1 for r, i in enumerate(bm25_order)}
     fused = Counter()
     for i, r in dense_rank.items():
-        fused[i] += 1.0 / (rrf_k + r)
+        fused[i] += 1.0 / (RRF_K + r)
     for i, r in bm25_rank.items():
-        fused[i] += 1.0 / (rrf_k + r)
+        fused[i] += 1.0 / (RRF_K + r)
 
     hits = []
     for i, score in fused.most_common(top_k):

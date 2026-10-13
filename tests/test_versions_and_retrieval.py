@@ -1,15 +1,13 @@
 from datetime import date
 
 from ska.retrieval import bm25_scores, search
-from ska.versions import (CURRENT, NOT_YET, SUPERSEDED, asks_for_history, current_version_of,
-                          statuses)
+from ska.versions import CURRENT, NOT_YET, SUPERSEDED, asks_for_history, statuses
 
 
 def test_old_per_diem_policy_is_superseded(index):
     st = statuses(list(index.docs.values()), date(2026, 10, 12))
     assert st["FIN-PERDIEM-2025"] == SUPERSEDED
     assert st["FIN-PERDIEM-2026"] == CURRENT
-    assert current_version_of("FIN-PERDIEM-2025", list(index.docs.values())) == "FIN-PERDIEM-2026"
 
 
 def test_a_future_version_does_not_replace_the_current_one_yet(index):
