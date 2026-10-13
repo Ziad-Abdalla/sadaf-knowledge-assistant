@@ -25,11 +25,11 @@ from .arabic import is_arabic, normalize_light
 from .audit import AuditLog
 from .embeddings import Embedder, load_embedder
 from .generation import GenerationError, generate, source_block
-from .grounding import BLOCKING, check_sentence
+from .grounding import WARN_FLAGS, check_sentence
 from .index import Index, index_path
 from .redaction import Redactor
 from .retrieval import Hit, search
-from .versions import CURRENT, SUPERSEDED, statuses
+from .versions import CURRENT, SUPERSEDED, asks_for_history, statuses
 
 TEXT = {
     "ar": {
@@ -140,7 +140,7 @@ class Answer:
         parts = []
         for s in self.sentences:
             refs = " ".join(f"[{cites[n].label(self.lang)}]" for n in s.citations if n in cites)
-            warn = " ⚠" if set(s.flags) & BLOCKING else ""
+            warn = " ⚠" if set(s.flags) & WARN_FLAGS else ""
             parts.append(f"{s.text} {refs}{warn}".strip())
         return "\n".join(parts + self.notices)
 
@@ -169,21 +169,19 @@ class Assistant:
         return self._client
 
     # ------------------------------------------------------------------ main path
-    def ask(self, question: str, user: User, include_history: bool | None = None) -> Answer:
-        from .versions import asks_for_history
-
+    def ask(self, question: str, user: User, force_history: bool = False) -> Answer:
         t0 = time.perf_counter()
         rel = self.release
         question = normalize_light(question.strip())
         lang = "ar" if is_arabic(question) else "en"
         T = TEXT[lang]
-        history = include_history if include_history is not None else asks_for_history(question)
+        history = force_history or asks_for_history(question)
         ans = Answer(request_id=uuid.uuid4().hex[:12], question=question, lang=lang,
                      status="refused", history_mode=history, release_id=rel.id,
                      model=rel.llm_model, prompt_hash=rel.prompt_hash)
 
         result = search(self.index, self.embedder, question, user, top_k=rel.top_k,
-                        rrf_k=rel.rrf_k, history=history, today=self.today,
+                        history=history, today=self.today,
                         audit_threshold=rel.min_dense)
         ans.best_dense = result.best_dense
         hits = result.hits
@@ -209,7 +207,11 @@ class Assistant:
         # 2. Confidential handling, then the prompt sources.
         secret = [h for h in hits if h.doc.confidentiality == "highly_confidential"]
         if secret and rel.external_policy == "local_only":
-            return self._finish(self._extractive(ans, secret, T), log, t0)
+            if hits[0] is secret[0]:
+                # The best match is highly confidential: show its passages, no model call.
+                return self._finish(self._extractive(ans, secret, T), log, t0)
+            # Otherwise drop the confidential hits and send the rest to the model as usual.
+            hits = [h for h in hits if h.doc.confidentiality != "highly_confidential"]
         redactor = Redactor()
         sources, blocks = {}, []
         for i, h in enumerate(hits, 1):
@@ -244,7 +246,7 @@ class Assistant:
         # 4. Post-check each sentence, then restore masked values and number the citations.
         sid_to_n: dict[str, int] = {}
         for s in out.sentences:
-            flags = check_sentence(s.text, s.sources, sources)
+            flags = check_sentence(s.text, s.sources, sources, question)
             nums = []
             for sid in s.sources:
                 if sid in sources:
@@ -333,7 +335,7 @@ class Assistant:
 
     def _finish(self, ans: Answer, log: dict, t0: float) -> Answer:
         ans.latency_ms = int((time.perf_counter() - t0) * 1000)
-        flagged = [s for s in ans.sentences if set(s.flags) & BLOCKING]
+        flagged = [s for s in ans.sentences if set(s.flags) & WARN_FLAGS]
         self.audit.record(**log, decision=ans.status if ans.status != "partial" else "answered",
                           reason=ans.reason, cited_docs=sorted({c.doc_id for c in ans.citations}),
                           flagged_sentences=len(flagged),

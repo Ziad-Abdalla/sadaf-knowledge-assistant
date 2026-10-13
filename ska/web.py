@@ -66,7 +66,7 @@ def create_app(assistant: Assistant | None = None, users: dict | None = None) ->
     def answer_page(request: Request, question: str, user_id: str, history: str | None):
         user = users.get(user_id) or users["saad"]
         a = get_assistant()
-        answer = a.ask(question, user, include_history=True if history else None)
+        answer = a.ask(question, user, force_history=bool(history))
         why = REASONS.get(answer.reason, "").format(best=answer.best_dense, min=a.release.min_dense)
         return page(request, user_id=user.user_id, answer=answer, question=question,
                     history=bool(history), why=why)

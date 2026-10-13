@@ -49,8 +49,10 @@ def test_finance_question_on_budget_sends_no_real_amount_to_the_model(make_assis
 
 
 def test_local_only_policy_answers_without_calling_the_model(make_assistant, users):
+    from dataclasses import replace
+
     from .conftest import TEST_RELEASE
-    rel = type(TEST_RELEASE)(**{**TEST_RELEASE.__dict__, "external_policy": "local_only"})
+    rel = replace(TEST_RELEASE, external_policy="local_only")
     client = FakeAnthropic()
     a = make_assistant(client=client, release=rel)
     ans = a.ask("كم الميزانية الإجمالية لمسلسل رمال الذاكرة؟", users["khalid"])
@@ -77,6 +79,24 @@ def test_sum_of_source_numbers_is_marked_derived_not_wrong():
     assert DERIVED in flags and NUMBER_NOT_IN_SOURCE not in flags
 
 
+def test_a_sum_the_sentence_does_not_show_is_flagged():
+    # 450 is 350 + 100, but the sentence doesn't show the sum, so a reader can't check it.
+    assert NUMBER_NOT_IN_SOURCE in check_sentence("المياومة في أبها 450 ريالًا يوميًا.", ["S1"], SRC)
+
+
+def test_numbers_that_only_happen_to_match_some_arithmetic_are_flagged():
+    # 700 = 350 x 2 and 351 = 350 + 1, where 2 and 1 come from the version tag or a clause
+    # number. Neither is in the source, so both must get the warning.
+    for n in ("700", "351", "2376"):
+        flags = check_sentence(f"المياومة {n} ريال يوميًا داخل المملكة.", ["S1"], SRC)
+        assert NUMBER_NOT_IN_SOURCE in flags, n
+
+
+def test_a_number_from_the_question_is_not_flagged():
+    assert check_sentence("طلب شراء بقيمة 30,000 ريال، والمياومة 350 ريالًا يوميًا داخل المملكة.",
+                          ["S1"], SRC, question="من يعتمد طلب شراء بقيمة 30000 ريال؟")         == []
+
+
 def test_missing_or_unknown_citation_is_flagged():
     assert check_sentence("المياومة 350 ريال.", [], SRC) == [NO_CITATION]
     assert check_sentence("المياومة 350 ريال.", ["S7"], SRC) == [UNKNOWN_SOURCE]
@@ -97,3 +117,27 @@ def test_flagged_sentence_is_marked_in_the_answer(make_assistant, users):
     assert NUMBER_NOT_IN_SOURCE in ans.sentences[0].flags
     assert "⚠" in ans.text
     assert a.audit.recent(1)[0]["flagged_sentences"] == 1
+
+
+def test_local_only_drops_a_confidential_hit_that_is_not_the_best_match(make_assistant, users,
+                                                                        monkeypatch):
+    from dataclasses import replace
+
+    import ska.assistant
+    from ska.retrieval import search
+
+    from .conftest import TEST_RELEASE
+
+    def per_diem_first(*args, **kwargs):
+        r = search(*args, **kwargs)
+        r.hits.sort(key=lambda h: h.doc.confidentiality == "highly_confidential")
+        return r
+
+    monkeypatch.setattr(ska.assistant, "search", per_diem_first)
+    client = FakeAnthropic()
+    a = make_assistant(client=client, release=replace(TEST_RELEASE, external_policy="local_only"))
+    ans = a.ask("كم الاحتياطي في ميزانية المسلسل وكم المياومة؟", users["khalid"])
+    sent = sources_in(client.sent[0])
+    assert ans.reason != "local_only_extractive"
+    assert sent and all("ميزانية" not in title for _, title, _ in sent)
+    assert "CANARY-BUD" not in client.sent[0]["messages"][0]["content"]

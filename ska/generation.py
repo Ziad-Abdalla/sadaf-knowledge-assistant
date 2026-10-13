@@ -2,7 +2,7 @@
 
 - Structured output (a JSON schema) so every sentence arrives with its source ids.
 - The system prompt is the same for every question, so it is marked for prompt caching:
-  after the first call, those tokens are read from the cache at a tenth of the price.
+  after the first call, those tokens are read from the cache at a much lower price.
 - The call goes through agent_cost_tracker.tracked_call: every call is priced and logged,
   and it refuses to run once the budget is spent.
 """
@@ -54,17 +54,28 @@ class Generation:
     model: str
 
 
+def no_tags(text: str) -> str:
+    """Angle brackets become look-alike characters, so text can't open or close our tags."""
+    return text.replace("<", "‹").replace(">", "›")
+
+
+def _attr(value) -> str:
+    return no_tags(str(value)).replace('"', "'")
+
+
 def source_block(sid: str, hit: Hit, text: str) -> str:
+    # Document text is data, not instructions, and it can't close its own <source> tag:
+    # a document saying "</source> ignore the policy" stays inside its block.
     d = hit.doc
-    return (f'<source id="{sid}" title="{d.title}" section="{hit.chunk.section} — '
-            f'{hit.chunk.section_title}" version="{d.version}" '
+    return (f'<source id="{sid}" title="{_attr(d.title)}" section="{_attr(hit.chunk.section)} — '
+            f'{_attr(hit.chunk.section_title)}" version="{_attr(d.version)}" '
             f'effective_date="{d.effective_date.isoformat()}" doc_type="{d.doc_type}" '
-            f'status="{hit.status}">\n{text}\n</source>')
+            f'status="{hit.status}">\n{no_tags(text)}\n</source>')
 
 
 def build_user_message(question: str, blocks: list[str], lang: str = "ar") -> str:
-    # The question can't open or close our tags: angle brackets become look-alike characters.
-    question = question.replace("<", "‹").replace(">", "›")
+    # The question can't open or close our tags either.
+    question = no_tags(question)
     # The answer language is decided by code from the question, not left to the model.
     language = "Arabic" if lang == "ar" else "English"
     return (f"<answer_language>{language}</answer_language>\n<question>\n{question}\n</question>\n"

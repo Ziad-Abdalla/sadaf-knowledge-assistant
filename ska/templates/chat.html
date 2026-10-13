@@ -86,7 +86,7 @@
   <div class="answer refused">
     <h3>{% if answer.status == "refused" %}لا أستطيع الإجابة من المستندات{% else %}حدث خطأ{% endif %}</h3>
     <div>{{ answer.message }}</div>
-    {% if answer.missing %}<div class="why">ما لم أجده: {{ answer.missing }}</div>{% endif %}
+    {% if answer.missing %}<div class="why">لم أجد في المستندات: {{ answer.missing }}</div>{% endif %}
     {% if why %}<details open><summary>لماذا لا أستطيع الإجابة؟</summary><div class="why">{{ why }}</div></details>{% endif %}
   </div>
   {% else %}

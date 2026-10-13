@@ -5,9 +5,10 @@ For documents marked `highly_confidential` the release chooses one of:
   emails, phone numbers, IBANs and tracking codes are swapped for placeholders like
   [AMOUNT_1] before the call. The model answers with the placeholders, and we put the real
   values back locally. The external model never sees "18,500,000".
-- "local_only": the external model is not called at all for these documents. The user gets
-  the matching passages verbatim, with citations.
-- "allow": send as is (only sensible with a self-hosted model or a zero-retention contract).
+- "local_only": when the best match is highly confidential, the external model is not called
+  at all. The user gets the matching passages verbatim, with citations. Highly confidential
+  chunks lower down the list are dropped, and the rest go to the model as usual.
+Any other value stops the app when the releases file is loaded (ska/config.py).
 
 Honest limit: regexes and an owner-maintained term list will miss things a person would
 catch (an unusual name, an amount written in words). That's why the strict options are
@@ -23,7 +24,8 @@ CURRENCY = r"(?:ريال(?:\s*سعودي)?|ر\.س|SAR|SR|﷼)"
 # (kind, pattern). When a pattern has a group, only the group is masked, so the currency
 # word stays readable for the model: "[AMOUNT_1] ريال سعودي".
 PATTERNS = [
-    ("ID", re.compile(r"CANARY-[A-Z]{3}-\d{3,}")),
+    # Tracking codes. In this corpus they are canary tokens planted for the leak tests.
+    ("CODE", re.compile(r"CANARY-[A-Z]{3}-\d{3,}")),
     ("EMAIL", re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")),
     ("IBAN", re.compile(r"\bSA\d{2}[\dA-Z ]{18,26}\b")),
     ("PHONE", re.compile(r"(?:\+966|00966|\b05)\d[\d ]{7,10}\d")),
