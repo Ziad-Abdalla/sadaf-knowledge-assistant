@@ -3,38 +3,45 @@
 No second model call. For each sentence:
 - it must cite at least one source, and only sources we actually gave the model;
 - every number in it must appear in the cited source (or its metadata line: version and
-  date), or be a simple sum/difference/product of two numbers that do (then it is marked
-  "derived", which is fine but worth showing, e.g. 350 + 100 = 450 per day in Abha);
+  date) or in the question itself. The one exception is a sum the sentence shows: in
+  "350 + 100 = 450", 350 and 100 are in the source and in the sentence, so 450 is marked
+  "derived" (fine, but worth showing). A number that is neither, like 700 or 400 against a
+  350 source, is flagged;
 - if the sentence and the source are in the same language, a reasonable share of its content
   words must appear in the source.
-Anything that fails is shown to the user with a warning, logged, and counted in the eval.
+Anything flagged with a WARN_FLAGS flag is still shown, but with a warning, and it is logged
+and counted in the eval.
 Numbers are where a confident wrong answer hurts most (amounts, days, deadlines), so the
 number rule is strict and the word-overlap rule is soft.
 """
 
-from itertools import product
+from itertools import combinations
 
 from .arabic import is_arabic, numbers_in, tokenize
 
 MIN_OVERLAP = 0.2
 NO_CITATION, UNKNOWN_SOURCE, NUMBER_NOT_IN_SOURCE, WEAK_OVERLAP, DERIVED = (
     "no_citation", "unknown_source", "number_not_in_source", "weak_overlap", "derived_number")
-BLOCKING = {NO_CITATION, UNKNOWN_SOURCE, NUMBER_NOT_IN_SOURCE}
+# These flags put a warning next to the sentence. Nothing is hidden; the reader is warned.
+WARN_FLAGS = {NO_CITATION, UNKNOWN_SOURCE, NUMBER_NOT_IN_SOURCE}
 
 
-def _derivable(n: str, source_numbers: set[str]) -> bool:
+def _same(a: str, b: str) -> bool:
+    return a == b or a.lstrip("0") == b.lstrip("0")
+
+
+def _shown_sum(n: str, operands: set[str]) -> bool:
+    """True if n is the sum of two different numbers that the sentence itself shows."""
     try:
         target = float(n)
-        values = [float(x) for x in source_numbers]
+        values = {float(x) for x in operands}
     except ValueError:
         return False
-    for a, b in product(values, repeat=2):
-        if target in (a + b, a - b, a * b):
-            return True
-    return False
+    return any(a + b == target for a, b in combinations(values, 2))
 
 
-def check_sentence(text: str, cited: list[str], sources: dict[str, str]) -> list[str]:
+def check_sentence(text: str, cited: list[str], sources: dict[str, str],
+                   question: str = "") -> list[str]:
     """`sources` maps source id (S1..) to the exact text the model saw for it."""
     if not cited:
         return [NO_CITATION]
@@ -43,11 +50,11 @@ def check_sentence(text: str, cited: list[str], sources: dict[str, str]) -> list
     support = "\n".join(sources[c] for c in cited)
     flags = []
 
-    source_numbers = numbers_in(support)
-    for n in numbers_in(text):
-        if n in source_numbers or n.lstrip("0") in {s.lstrip("0") for s in source_numbers}:
-            continue
-        if _derivable(n, source_numbers):
+    allowed = numbers_in(support) | numbers_in(question)
+    in_sentence = numbers_in(text)
+    supported = {n for n in in_sentence if any(_same(n, s) for s in allowed)}
+    for n in in_sentence - supported:
+        if _shown_sum(n, supported):
             flags.append(DERIVED)
         else:
             flags.append(NUMBER_NOT_IN_SOURCE)
